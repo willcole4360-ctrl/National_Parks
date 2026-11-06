@@ -7,3 +7,6 @@ Line or statement somewhere noticable near the top
 another great messsge
 
 Coles commit change
+
+
+another one
