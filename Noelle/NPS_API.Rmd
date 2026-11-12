@@ -1,0 +1,34 @@
+---
+title: "NPS_API"
+output: html_document
+editor_options:
+  chunk_output_type: console
+---
+
+```{r}
+library(httr)
+library(httr2)
+library(jsonlite)
+```
+
+
+```{r}
+
+api_key <- Sys.getenv("NPS_api_key")
+
+# Example: Get alerts for Acadia and Denali parks
+req <- request("https://developer.nps.gov/api/v1/parks") |> 
+  req_url_query(limit = 500, api_key = api_key)
+
+resp <- req_perform(req)
+
+# Parse the JSON response into an R list/data frame
+data <- resp |> 
+  resp_body_string() |> 
+  fromJSON(flatten = TRUE)
+
+# View alerts data frame
+parks <- data$data
+```
+
+
