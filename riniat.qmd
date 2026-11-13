@@ -20,19 +20,31 @@ place <- 72841
 ```
 
 
-## Test pull
+```{r}
+
+api_key <- api_key
+
+# Example: Get alerts for Acadia and Denali parks
+req <- request("https://developer.nps.gov/api/v1/parks") |> 
+  req_url_query(limit = 500, api_key = api_key)
+
+resp <- req_perform(req)
+
+# Parse the JSON response into an R list/data frame
+data <- resp |> 
+  resp_body_string() |> 
+  fromJSON(flatten = TRUE)
+
+# View alerts data frame
+parks <- data$data
+```
 
 ```{r}
-# Get up to 500 research grade observations from 2026
-temp <- get_inat_obs(
-  place_id = place,
-  maxresults = 500,
-  quality = "research",
-  year = 2026
-)
-
-as_tibble(temp)     # one row per observation
+location <- parks |>
+  select(fullName,parkCode,longitude, latitude)
 ```
+
+
 
 
 ## Species snapshot for a place
@@ -53,6 +65,8 @@ str(indepth, max.level = 2)
 
 
 ```{r}
+
+
 find_place_by_name <- function(name) {
   resp <- request("https://api.inaturalist.org/v1/places/autocomplete") |>
     req_url_query(q = name) |>
@@ -63,6 +77,8 @@ find_place_by_name <- function(name) {
 }
 
 find_place_by_name("Acadia National Park")
+
+
 ```
 
 

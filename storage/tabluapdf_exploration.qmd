@@ -1,0 +1,17 @@
+---
+title: "tabluapdf_exploration"
+format: html
+---
+
+
+```{r}
+install.packages("tabulapdf", repos = c("https://ropensci.r-universe.dev", "https://cloud.r-project.org"))
+
+??tabulapdf
+
+tabulapdf::extract_tables(~/CDWTesting/NoelleCole_Collab/National_Parks/data/fy2027greenbooknps_0.pdf
+ 
+                          
+tables <- tabulapdf::extract_tables("fy2027greenbooknps_0.pdf", pages = 1)
+
+```

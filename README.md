@@ -1,15 +1,11 @@
 # National_Parks
 
-Noelle and Cole collaborate for a Data Sci 264 Project on National Parks
+Welcome to Cole and Noelle's collaboration on National Park data!
 
-Line or statement somewhere noticable near the top
+We have gathered a data set of national parks and a variety of their attributes. 
+Later, this will become an interactive map that can help users plan their trips!
 
-another great messsge
+We plan to attach a table from iNaturalist to each national park. This will show the user a variety of species that they are likely to see during their trip!
+Currently, this table does not exist for each park, but a sample table for one park can be found in the rinat.qmd file.
 
-write something on line 9
-
-add another
-
-and on emore 
-
-back at it again
+Our most up to date csv for the national parks data can be found in: park_info.csv

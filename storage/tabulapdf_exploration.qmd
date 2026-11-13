@@ -1,0 +1,214 @@
+---
+title: "Exploring the FY2027 NPS Greenbook with pdftools"
+format: html
+execute:
+  warning: false
+  message: false
+---
+
+## Setup
+
+`pdftools` uses the Poppler C++ library, so unlike `tabulapdf` it doesn't need
+Java. The CRAN binaries for macOS and Windows include Poppler. On Linux,
+install `libpoppler-cpp-dev` first.
+
+`pdftools` has no table detector. It gives you two things to work with:
+
+- `pdf_text()`: one string per page, laid out with spaces to roughly match
+  the printed page.
+- `pdf_data()`: every word on a page with its x/y position.
+
+The sections below build tables from each of these.
+
+```{r}
+#| label: setup
+# install.packages(c("pdftools", "tidyverse", "janitor"))
+library(pdftools)
+library(tidyverse)
+library(janitor)
+
+# This .qmd lives in data/, alongside the PDF
+pdf_path <- "fy2027greenbooknps_0.pdf"
+file.exists(pdf_path)
+```
+
+## Get to know the document
+
+The Greenbook is long, so first figure out which pages hold the tables you want.
+
+```{r}
+#| label: metadata
+pdf_length(pdf_path)
+pdf_info(pdf_path)[c("pages", "created", "producer")]
+pdf_pagesize(pdf_path)[1, ]     # width/height in PDF points
+```
+
+Pull out the raw text of every page and search it for keywords to find
+the pages you want.
+
+```{r}
+#| label: find-pages
+page_text <- pdf_text(pdf_path)              # one string per page
+
+pages_tbl <- tibble(
+  page = seq_along(page_text),
+  text = page_text
+)
+
+# Change the pattern to whatever table you're after
+find_pages <- function(pattern) {
+  pages_tbl |>
+    filter(str_detect(text, regex(pattern, ignore_case = TRUE))) |>
+    pull(page)
+}
+
+find_pages("Summary of Requirements")
+find_pages("Park Base Funding|Park Management")
+```
+
+## Approach 1: split the page text on whitespace
+
+`pdf_text()` keeps the page layout, so columns are usually separated by
+runs of two or more spaces. Splitting on those runs works for most
+whitespace-only budget tables, like Tabula's `"stream"` mode does.
+
+```{r}
+#| label: single-page-text
+test_page <- find_pages("Summary of Requirements")[1]   # or set a number
+
+cat(page_text[[test_page]])    # look at the raw layout first
+
+text_table <- function(p, min_gap = 2) {
+  lines <- str_split_1(page_text[[p]], "\n") |> str_trim()
+  lines <- lines[lines != ""]
+
+  cells <- str_split(lines, sprintf("\\s{%d,}", min_gap))
+  n_col <- max(lengths(cells))
+
+  cells |>
+    map(\(x) c(x, rep(NA_character_, n_col - length(x)))) |>
+    do.call(what = rbind) |>
+    as_tibble(.name_repair = \(nm) paste0("x", seq_along(nm))) |>
+    mutate(.page = p, .before = 1)
+}
+
+tbl_text <- text_table(test_page)
+tbl_text
+```
+
+This approach has one weakness. When a row has an empty cell, the values
+after it shift left into the wrong column. If that happens, use the
+coordinate approach below.
+
+## Approach 2: use word coordinates
+
+`pdf_data()` returns one row per word with `x`, `y`, `width`, and `height`
+in PDF points, measured from the top-left corner. Plot the words to see
+where the table sits and where the column boundaries fall.
+
+```{r}
+#| label: word-positions
+words <- pdf_data(pdf_path)[[test_page]]
+words
+
+ggplot(words, aes(x, y, label = text)) +
+  geom_text(size = 2, hjust = 0) +
+  scale_y_reverse(breaks = seq(0, 800, 50)) +
+  scale_x_continuous(breaks = seq(0, 650, 50)) +
+  theme_minimal()
+```
+
+Read off from the plot:
+
+- `area` is `c(top, left, bottom, right)`, the box around the table, so
+  page headers and footers are left out.
+- `col_breaks` are the x positions where each new column starts. Put them
+  in the gaps between columns.
+
+```{r}
+#| label: coord-table
+words_to_table <- function(words, col_breaks, area = NULL, y_tol = 3) {
+  if (!is.null(area)) {
+    words <- words |>
+      filter(y >= area[1], x >= area[2],
+             y + height <= area[3], x + width <= area[4])
+  }
+
+  words |>
+    arrange(y, x) |>
+    mutate(
+      row = cumsum(c(TRUE, diff(y) > y_tol)),   # same line if y within y_tol
+      col = findInterval(x, col_breaks) + 1
+    ) |>
+    arrange(row, col, x) |>
+    summarise(text = str_c(text, collapse = " "), .by = c(row, col)) |>
+    pivot_wider(names_from = col, values_from = text,
+                names_prefix = "x", names_sort = TRUE) |>
+    select(-row)
+}
+```
+
+```{r}
+#| label: coord-example
+#| eval: false
+words_to_table(
+  words,
+  col_breaks = c(250, 330, 410, 490),     # adjust to your table
+  area       = c(100, 30, 720, 590)       # adjust to your table
+)
+```
+
+## Extract from many pages
+
+Once one page looks right, loop over a range of pages. The `.page` column
+records where each table came from.
+
+```{r}
+#| label: many-pages
+target_pages <- find_pages("Summary of Requirements")
+
+raw_tables <- map(target_pages, text_table)
+
+# If the pages share a layout, the coordinate approach also works in a loop:
+# all_words  <- pdf_data(pdf_path)
+# raw_tables <- map(target_pages, \(p) {
+#   words_to_table(all_words[[p]], col_breaks = c(250, 330, 410, 490)) |>
+#     mutate(.page = p, .before = 1)
+# })
+
+length(raw_tables)
+```
+
+## Clean up
+
+Budget tables usually need a few standard fixes: clean the column names,
+strip `$` and `,` from numbers, and treat dashes as zero or NA.
+
+```{r}
+#| label: clean
+clean_budget_table <- function(df) {
+  df |>
+    clean_names() |>
+    mutate(across(
+      -c(1:2),   # keep .page and the label column as text
+      \(x) x |>
+        str_replace_all("[$,]", "") |>
+        str_replace("^[-–—]+$", NA_character_) |>
+        str_replace("^\\((.*)\\)$", "-\\1") |>      # (123) -> -123
+        parse_number()
+    ))
+}
+
+cleaned <- map(raw_tables, possibly(clean_budget_table, otherwise = NULL)) |>
+  compact()
+
+cleaned[[1]]
+```
+
+## Save
+
+```{r}
+#| label: save
+#| eval: false
+iwalk(cleaned, \(df, i) write_csv(df, sprintf("greenbook_table_%03d.csv", i)))
+```
