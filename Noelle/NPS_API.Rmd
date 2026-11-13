@@ -60,4 +60,19 @@ passes <- parks |>
 hours <- parks |>
   select(fullName, operatingHours)|>
   unnest(operatingHours)
+
+hour<- as.list(parks$operatingHours)
 ```
+
+
+```{r}
+park_info <- parks |>
+  select(fullName,name, parkCode,states, longitude, latitude,latLong, activities, entranceFees, operatingHours, entrancePasses, url, description, weatherInfo)
+```
+
+```{r}
+library(readr)
+write_csv(park_info, "park_info.csv")
+```
+
+
