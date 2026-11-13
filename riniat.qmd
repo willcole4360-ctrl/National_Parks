@@ -1,0 +1,79 @@
+---
+title: "rinat_test"
+format:
+  html: default
+editor_options:
+  chunk_output_type: console
+---
+
+
+```{r libs}
+
+library(tidyverse)
+library(rinat)
+```
+
+```{r}
+# iNaturalist place_id
+#  - find it in the URL of a place page on inaturalist.org
+place <- 72841
+```
+
+
+## Test pull
+
+```{r}
+# Get up to 500 research grade observations from 2026
+temp <- get_inat_obs(
+  place_id = place,
+  maxresults = 500,
+  quality = "research",
+  year = 2026
+)
+
+as_tibble(temp)     # one row per observation
+```
+
+
+## Species snapshot for a place
+
+###iNat's own stats, top 5 only
+
+```{r}
+stats <- get_inat_taxon_stats(bounds, place = place)
+
+str(stats, max.level = 1)
+
+stats$total     # number of different taxa (species, genus, etc.) observed
+
+# The 5 most observed species
+indepth <- stats$species_counts
+str(indepth, max.level = 2)
+```
+
+
+```{r}
+find_place_by_name <- function(name) {
+  resp <- request("https://api.inaturalist.org/v1/places/autocomplete") |>
+    req_url_query(q = name) |>
+    req_perform() |>
+    resp_body_json()
+
+  map(resp$results, \(p) tibble(id = p$id, name = p$display_name)) |> list_rbind()
+}
+
+find_place_by_name("Acadia National Park")
+```
+
+
+
+```{r}
+top5_species <- tibble(
+  scientific_name = indepth$taxon$name,
+  iconic_taxon_name = indepth$taxon$iconic_taxon_name,
+  count = parse_number(indepth$count)     # count comes in as text
+)
+top5_species
+```
+
+

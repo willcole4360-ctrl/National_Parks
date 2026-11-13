@@ -1,0 +1,35 @@
+---
+title: "NPS Park Images"
+format: html
+---
+
+```{r libs}
+library(httr2)
+library(tidyverse)
+library(htmltools)
+
+NPS_API_KEY <- "Pk9LPjGtrr8QCJrmfhdrjmCHWWwTLn8gF9CNDPQ9"
+
+```
+
+## Pull images
+
+```{r pull}
+nps <- request("https://developer.nps.gov/api/v1/parks") |>
+  req_url_query(
+    parkCode = "acad",
+    fields   = "images",
+    api_key  = NPS_API_KEY
+  ) |>
+  req_perform() |> # this sends the actual request
+  resp_body_json()  # this takes the output from the request and sends it to us as a json that r can read
+
+nps_images <- tibble(park = nps$data) |>
+  hoist(park, park_code = "parkCode", images = "images") |> # pulls out the cols of a list and puts them into the larger dataset
+  unnest_longer(images) |> #unnests the lists, turns each element into a row
+  unnest_wider(images) |> # does the same thing, but for cols
+  select(park_code, title, caption, credit, url)
+
+write_csv(nps_images, "nps_images.csv")
+
+```
