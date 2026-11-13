@@ -34,6 +34,12 @@ parks <- data$data
 ```
 
 ```{r}
+location <- parks |>
+  select(fullName,parkCode,longitude, latitude)
+```
+
+
+```{r}
 activities <- parks |>
   select(fullName,activities)|>
   unnest(activities)
