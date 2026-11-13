@@ -9,6 +9,8 @@ editor_options:
 library(httr)
 library(httr2)
 library(jsonlite)
+library(tidyr)
+library(dplyr)
 ```
 
 
@@ -31,4 +33,26 @@ data <- resp |>
 parks <- data$data
 ```
 
+```{r}
+activities <- parks |>
+  select(fullName,activities)|>
+  unnest(activities)
+```
 
+```{r}
+fees <- parks |>
+  select(fullName,entranceFees)|>
+  unnest(entranceFees)
+```
+
+```{r}
+passes <- parks |>
+  select(fullName,entrancePasses)|>
+  unnest(entrancePasses)
+```
+
+```{r}
+hours <- parks |>
+  select(fullName, operatingHours)|>
+  unnest(operatingHours)
+```
